@@ -15,6 +15,7 @@ from agno.models.google import Gemini
 from agno.storage.sqlite import SqliteStorage
 from loguru import logger
 from .jira_knowledge import JiraKnowledgeManager
+from sidekick.utils.jira_client_utils import get_project_component_names
 
 ALLOWED_TEAMS = [
     "**REMOVED**",
@@ -38,104 +39,56 @@ ALLOWED_TEAMS = [
     "**REMOVED**",
 ]
 
-ALLOWED_COMPONENTS = [
-    # **REMOVED**
-    "build/release",
-    "core platform",
-    "backstage version adoption",
-    "Logging",
-    "upstream",
-    "community advocacy & support",
-    #**REMOVED**
-    "helm chart",
-    "Operator",
-    "Corporate proxy",
-    "External database",
-    "RHDH Local",
-    # **REMOVED**
-    "authentication",
-    "auth providers",
-    "Security",
-    "CVEs",
-    # **REMOVED**
-    "plugins",
-    "Gitlab",
-    "azure plugin",
-    "bulk import",
-    "open cluster management",
-    "rbac plugin",
-    "web terminal plugin",
-    "techdocs plugin",
-    "software templates",
-    "Actions",
-    "Notification",
-    "3scale",
-    "regex-action",
-    "quay-action",
-    # **REMOVED**
-    "dynamic plugin tooling",
-    "Marketplace",
-    # **REMOVED**
-    "UI",
-    "Bulk import plugin",
-    "Topology Plugin",
-    # **REMOVED**
-    "Documentation",
-    "UXD",
-    # **REMOVED**
-    "rhdh-plugins",
-    "lightspeed",
-    "Insights",
-]
-
 COMPONENT_TEAM_MAP = {
-    # **REMOVED**
-    "build/release": "**REMOVED**",
-    "core platform": "**REMOVED**",
-    "backstage version adoption": "**REMOVED**",
-    "Logging": "**REMOVED**",
-    "upstream": "**REMOVED**",
-    "community advocacy & support": "**REMOVED**",
-    # **REMOVED**
-    "helm chart": "**REMOVED**",
-    "Operator": "**REMOVED**",
-    "Corporate proxy": "**REMOVED**",
-    "External database": "**REMOVED**",
-    "RHDH Local": "**REMOVED**",
-    # **REMOVED**
-    "authentication": "**REMOVED**",
-    "auth providers": "**REMOVED**",
-    "Security": "**REMOVED**",
-    "CVEs": "**REMOVED**",
-    # **REMOVED**
-    "plugins": "**REMOVED**",
-    "Gitlab": "**REMOVED**",
-    "azure plugin": "**REMOVED**",
-    "bulk import": "**REMOVED**",
-    "open cluster management": "**REMOVED**",
-    "rbac plugin": "**REMOVED**",
-    "web terminal plugin": "**REMOVED**",
-    "techdocs plugin": "**REMOVED**",
-    "software templates": "**REMOVED**",
-    "Actions": "**REMOVED**",
-    "Notification": "**REMOVED**",
-    "3scale": "**REMOVED**",
-    "regex-action": "**REMOVED**",
-    "quay-action": "**REMOVED**",
-    # **REMOVED**
-    "dynamic plugin tooling": "**REMOVED**",
-    "Marketplace": "**REMOVED**",
-    # **REMOVED**
-    "UI": "**REMOVED**",
-    "Bulk import plugin": "**REMOVED**",
-    "Topology Plugin": "**REMOVED**",
-    # **REMOVED**
-    "Documentation": "**REMOVED**",
-    "UXD": "**REMOVED**",
-    # **REMOVED**
-    "rhdh-plugins": "**REMOVED**",
-    "lightspeed": "**REMOVED**",
-    "Insights": "**REMOVED**",
+    "3scale": ["**REMOVED**"],
+    "Actions": ["**REMOVED**"],
+    "AI": ["**REMOVED**", "**REMOVED**"],
+    "ArgoCD Plugin": ["**REMOVED**"],
+    "Audit Log": ["**REMOVED**"],
+    "Authentication": ["**REMOVED**"],
+    "Azure Container Registry plugin": ["**REMOVED**"],
+    "Build": ["**REMOVED**"],
+    "Bulk Import Plugin": ["**REMOVED**", "**REMOVED**"],
+    "Catalog": ["**REMOVED**"],
+    "Core platform": ["**REMOVED**"],
+    "database": ["**REMOVED**"],
+    "Developer Hub UX": ["**REMOVED**"],
+    "Documentation": ["**REMOVED**"],
+    "Dynamic plugins": ["**REMOVED**"],
+    "Event Module": ["**REMOVED**"],
+    "FIPs": ["**REMOVED**"],
+    "Frontend Plugins & UI": ["**REMOVED**"],
+    "Helm Chart": ["**REMOVED**"],
+    "Installation & Run": ["**REMOVED**"],
+    "jfrog Artifactory": ["**REMOVED**"],
+    "Keycloak provider": ["**REMOVED**", "**REMOVED**"],
+    "lightspeed": ["**REMOVED**"],
+    "Localization": ["**REMOVED**"],
+    "Marketplace": ["**REMOVED**"],
+    "Matomo Analytics Provider Plugin": ["**REMOVED**"],
+    "Notifications plugin": ["**REMOVED**"],
+    "ocm": ["**REMOVED**", "**REMOVED**"],
+    "Open Cluster Management plugin": ["**REMOVED**"],
+    "Operator": ["**REMOVED**"],
+    "Orchestrator plugin": ["**REMOVED**"],
+    "Performance": ["**REMOVED**"],
+    "Platform plugins & Backend Plugins": ["**REMOVED**"],
+    "Plugins": ["**REMOVED**"],
+    "Quay Actions": ["**REMOVED**"],
+    "Quay Plugin": ["**REMOVED**"],
+    "Quickstart Plugin": ["**REMOVED**"],
+    "RBAC Plugin": ["**REMOVED**", "**REMOVED**"],
+    "regex-actions": ["**REMOVED**"],
+    "RHDH Local": ["**REMOVED**"],
+    "Security": ["**REMOVED**"],
+    "Software Templates": ["**REMOVED**"],
+    "TechDocs": ["**REMOVED**"],
+    "Tekton plugin": ["**REMOVED**"],
+    "Theme": ["**REMOVED**"],
+    "Topology plugin": ["**REMOVED**"],
+    "UI": ["**REMOVED**"],
+    "Upstream": ["**REMOVED**"],
+    "Web Terminal plugin": ["**REMOVED**"],
 }
 
 class JiraTriagerAgent:
@@ -172,7 +125,7 @@ class JiraTriagerAgent:
         self._session_id: Optional[str] = None
         self.jira_knowledge_manager = jira_knowledge_manager
         self.jira_knowledge_manager.load_issues(recreate=False)
-
+        self._allowed_components = get_project_component_names("RHIDP")
         logger.debug(f"JiraTriagerAgent initialized: storage_path={storage_path}, user_id={user_id}")
 
     def _generate_session_id(self) -> str:
@@ -225,7 +178,7 @@ class JiraTriagerAgent:
                     "You are an expert Jira ticket triager.",
                     "Your job is to recommend the best team and component for a new Jira issue, based on previous support tickets.",
                     f"Only choose from the following teams: {', '.join(ALLOWED_TEAMS)}.",
-                    f"Only choose from the following components: {', '.join(ALLOWED_COMPONENTS)}.",
+                    f"Only choose from the following components: {', '.join(self._allowed_components)}.",
                     "You will be given a list of previous tickets (with title, description, component, team, assignee) and the current ticket (title, description, component, team, assignee).",
                     "Analyze the previous tickets for patterns and similarities to the current ticket.",
                     "Recommend the most likely team and component for the current ticket.",
@@ -289,10 +242,14 @@ class JiraTriagerAgent:
         suggested_team = COMPONENT_TEAM_MAP.get(component)
         prompt_lines = [
             f"Allowed teams: {ALLOWED_TEAMS}",
-            f"Allowed components: {ALLOWED_COMPONENTS}",
+            f"Allowed components: {self._allowed_components}",
         ]
         if component and suggested_team:
-            prompt_lines.append(f"For the component '{component}', the usual owning team is '{suggested_team}'. However, use your judgment based on the ticket context.")
+            if isinstance(suggested_team, list):
+                teams_str = ", ".join(suggested_team)
+            else:
+                teams_str = str(suggested_team)
+            prompt_lines.append(f"For the component '{component}', the usual owning team(s): {teams_str}. However, use your judgment based on the ticket context.")
         prompt_lines.extend([
             "Given the current Jira ticket (as JSON):",
             f"{current_ticket}",
