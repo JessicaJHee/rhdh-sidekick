@@ -31,7 +31,6 @@ ALLOWED_TEAMS = [
     "**REMOVED**",
     "**REMOVED**",
     "**REMOVED**",
-    "RHIDP - QE",
     "**REMOVED**",
     "**REMOVED**",
     "**REMOVED**",
@@ -40,55 +39,45 @@ ALLOWED_TEAMS = [
 ]
 
 COMPONENT_TEAM_MAP = {
-    "3scale": ["**REMOVED**"],
-    "Actions": ["**REMOVED**"],
-    "AI": ["**REMOVED**", "**REMOVED**"],
-    "ArgoCD Plugin": ["**REMOVED**"],
-    "Audit Log": ["**REMOVED**"],
-    "Authentication": ["**REMOVED**"],
-    "Azure Container Registry plugin": ["**REMOVED**"],
-    "Build": ["**REMOVED**"],
-    "Bulk Import Plugin": ["**REMOVED**", "**REMOVED**"],
-    "Catalog": ["**REMOVED**"],
-    "Core platform": ["**REMOVED**"],
-    "database": ["**REMOVED**"],
-    "Developer Hub UX": ["**REMOVED**"],
-    "Documentation": ["**REMOVED**"],
-    "Dynamic plugins": ["**REMOVED**"],
-    "Event Module": ["**REMOVED**"],
-    "FIPs": ["**REMOVED**"],
-    "Frontend Plugins & UI": ["**REMOVED**"],
-    "Helm Chart": ["**REMOVED**"],
-    "Installation & Run": ["**REMOVED**"],
-    "jfrog Artifactory": ["**REMOVED**"],
-    "Keycloak provider": ["**REMOVED**", "**REMOVED**"],
-    "lightspeed": ["**REMOVED**"],
-    "Localization": ["**REMOVED**"],
-    "Marketplace": ["**REMOVED**"],
-    "Matomo Analytics Provider Plugin": ["**REMOVED**"],
-    "Notifications plugin": ["**REMOVED**"],
-    "ocm": ["**REMOVED**", "**REMOVED**"],
-    "Open Cluster Management plugin": ["**REMOVED**"],
-    "Operator": ["**REMOVED**"],
-    "Orchestrator plugin": ["**REMOVED**"],
-    "Performance": ["**REMOVED**"],
-    "Platform plugins & Backend Plugins": ["**REMOVED**"],
-    "Plugins": ["**REMOVED**"],
-    "Quay Actions": ["**REMOVED**"],
-    "Quay Plugin": ["**REMOVED**"],
-    "Quickstart Plugin": ["**REMOVED**"],
-    "RBAC Plugin": ["**REMOVED**", "**REMOVED**"],
-    "regex-actions": ["**REMOVED**"],
-    "RHDH Local": ["**REMOVED**"],
-    "Security": ["**REMOVED**"],
-    "Software Templates": ["**REMOVED**"],
-    "TechDocs": ["**REMOVED**"],
-    "Tekton plugin": ["**REMOVED**"],
-    "Theme": ["**REMOVED**"],
-    "Topology plugin": ["**REMOVED**"],
-    "UI": ["**REMOVED**"],
-    "Upstream": ["**REMOVED**"],
-    "Web Terminal plugin": ["**REMOVED**"],
+    "**REMOVED**": [
+        "3scale", "Actions", "Azure Container Registry plugin", "Bulk Import Plugin", "Matomo Analytics Provider Plugin",
+        "Notifications plugin", "ocm", "Open Cluster Management plugin", "Platform plugins & Backend Plugins", "Plugins",
+        "Quay Actions", "RBAC Plugin", "regex-actions", "Software Templates", "TechDocs", "Web Terminal plugin"
+    ],
+    "**REMOVED**": [
+        "Bulk Import Plugin", "Frontend Plugins & UI", "Localization", "ocm", "Quickstart Plugin", "RBAC Plugin",
+        "Theme", "Topology plugin", "UI"
+    ],
+    "**REMOVED**": [
+        "Audit Log", "Build", "Catalog", "Core platform", "Event Module", "jfrog Artifactory", "Upstream"
+    ],
+    "**REMOVED**": [
+        "Authentication", "FIPs", "Keycloak provider", "Security"
+    ],
+    "**REMOVED**": [
+        "database", "Helm Chart", "Installation & Run", "Operator", "Orchestrator plugin", "RHDH Local"
+    ],
+    "**REMOVED**": [
+        "Developer Hub UX"
+    ],
+    "**REMOVED**": [
+        "Documentation"
+    ],
+    "**REMOVED**": [
+        "Dynamic plugins", "Marketplace"
+    ],
+    "**REMOVED**": [
+        "ArgoCD Plugin", "Quay Plugin", "Tekton plugin"
+    ],
+    "**REMOVED**": [
+        "Performance"
+    ],
+    "**REMOVED**": [
+        "AI", "lightspeed"
+    ],
+    "**REMOVED**": [
+        "AI"
+    ]
 }
 
 class JiraTriagerAgent:
@@ -125,7 +114,6 @@ class JiraTriagerAgent:
         self._session_id: Optional[str] = None
         self.jira_knowledge_manager = jira_knowledge_manager
         self.jira_knowledge_manager.load_issues(recreate=False)
-        self._allowed_components = get_project_component_names("RHIDP")
         logger.debug(f"JiraTriagerAgent initialized: storage_path={storage_path}, user_id={user_id}")
 
     def _generate_session_id(self) -> str:
@@ -171,6 +159,12 @@ class JiraTriagerAgent:
                 table_name="jira_triager_sessions",
                 db_file=str(self.storage_path),
             )
+            # Build a summary of the team-to-components mapping for the instructions
+            team_component_lines = []
+            for team, components in COMPONENT_TEAM_MAP.items():
+                comps_str = ", ".join(sorted(components))
+                team_component_lines.append(f"- {team}: {comps_str}")
+            team_component_map_str = "Team-to-Components Associations:\n" + "\n".join(team_component_lines)
             self._agent = Agent(
                 name="Jira Triager Agent",
                 model=Gemini(id="gemini-2.0-flash"),
@@ -178,8 +172,9 @@ class JiraTriagerAgent:
                     "You are an expert Jira ticket triager.",
                     "Your job is to recommend the best team and component for a new Jira issue, based on previous support tickets.",
                     f"Only choose from the following teams: {', '.join(ALLOWED_TEAMS)}.",
-                    f"Only choose from the following components: {', '.join(self._allowed_components)}.",
                     "You will be given a list of previous tickets (with title, description, component, team, assignee) and the current ticket (title, description, component, team, assignee).",
+                    "You will be provided with the allowed components for the current ticket in the prompt.",
+                    team_component_map_str,
                     "Analyze the previous tickets for patterns and similarities to the current ticket.",
                     "Recommend the most likely team and component for the current ticket.",
                     "If the current ticket already has a component, team, or assignee, consider them when determining the best match, but override if a better match is found.",
@@ -239,17 +234,20 @@ class JiraTriagerAgent:
 
         # Build a focused prompt for the current ticket only
         component = current_ticket.get("component")
-        suggested_team = COMPONENT_TEAM_MAP.get(component)
+        project_key = current_ticket.get("project_key") or "RHIDP"
+        allowed_components = get_project_component_names(project_key)
+        # Always include the team-to-components association in the prompt
+        team_component_lines = []
+        for team, components in COMPONENT_TEAM_MAP.items():
+            comps_str = ", ".join(sorted(components))
+            team_component_lines.append(f"- {team}: {comps_str}")
+        team_component_map_str = "Team-to-Components Associations:\n" + "\n".join(team_component_lines)
         prompt_lines = [
-            f"Allowed teams: {ALLOWED_TEAMS}",
-            f"Allowed components: {self._allowed_components}",
+            team_component_map_str,
+            f"Allowed components: {allowed_components}",
         ]
-        if component and suggested_team:
-            if isinstance(suggested_team, list):
-                teams_str = ", ".join(suggested_team)
-            else:
-                teams_str = str(suggested_team)
-            prompt_lines.append(f"For the component '{component}', the usual owning team(s): {teams_str}. However, use your judgment based on the ticket context.")
+        if component:
+            prompt_lines.append(f"Current component: {component}")
         prompt_lines.extend([
             "Given the current Jira ticket (as JSON):",
             f"{current_ticket}",
