@@ -14,11 +14,7 @@ from agno.tools import tool
 from loguru import logger
 from pydantic import BaseModel, Field
 
-try:
-    from jira import JIRA, Issue
-except ImportError:
-    raise ImportError("`jira` not installed. Please install using `pip install jira`") from None
-
+from jira import JIRA, Issue
 
 class JiraCommentData(BaseModel):
     """Pydantic model for Jira comment data."""

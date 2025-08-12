@@ -4,7 +4,7 @@ Jira client utility functions for the sidekick CLI application.
 
 from loguru import logger
 
-from sidekick.tools.jira import _get_jira_client
+from sidekick.tools.jira_toolkit import _get_jira_client
 
 DEFAULT_NUM_ISSUES = 50
 
@@ -71,6 +71,20 @@ def clean_jira_description(text):
     cleaned = cleaned.replace("\r\n", "\n").replace("\r", "")
     cleaned = cleaned.strip()
     return cleaned
+
+
+def clean_field(val):
+    return val if val and str(val).strip() else None
+
+def get_field(cli_value, fetched_value, is_list=False):
+    # If the CLI option was provided (even as empty string), use it (cleaned)
+    if cli_value is not None:
+        val = cli_value if cli_value.strip() else None
+        return val
+    # Otherwise, use the fetched value
+    if is_list:
+        return (fetched_value or [""])[0]
+    return fetched_value
 
 
 def fetch_and_transform_issues(

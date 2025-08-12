@@ -10,7 +10,7 @@ import os
 import typer
 from rich.console import Console
 
-from sidekick.utils.jira_client_utils import DEFAULT_NUM_ISSUES, fetch_and_transform_issues, get_jira_triager_fields
+from sidekick.utils.jira_client_utils import DEFAULT_NUM_ISSUES, fetch_and_transform_issues, get_jira_triager_fields, clean_field, get_field
 
 from ..agents.jira_knowledge import JiraKnowledgeManager
 from ..agents.jira_triager_agent import JiraTriagerAgent
@@ -90,19 +90,6 @@ def triage(
     """Triage a Jira issue by ID or manual fields and recommend team/component."""
     jira_knowledge_manager = JiraKnowledgeManager()
     agent = JiraTriagerAgent(jira_knowledge_manager=jira_knowledge_manager)
-
-    def clean_field(val):
-        return val if val and str(val).strip() else None
-
-    def get_field(cli_value, fetched_value, is_list=False):
-        # If the CLI option was provided (even as empty string), use it (cleaned)
-        if cli_value is not None:
-            val = cli_value if cli_value.strip() else None
-            return val
-        # Otherwise, use the fetched value
-        if is_list:
-            return (fetched_value or [""])[0]
-        return fetched_value
 
     if issue_id:
         try:

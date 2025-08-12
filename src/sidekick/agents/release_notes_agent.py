@@ -14,7 +14,7 @@ from agno.storage.sqlite import SqliteStorage
 from agno.tools.github import GithubTools
 from loguru import logger
 
-from ..tools.jira import jira_get_issue, jira_search_issues
+from ..tools.jira_toolkit import jira_get_issue, jira_search_issues
 
 
 class ReleaseNotesAgent:

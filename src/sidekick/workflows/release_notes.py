@@ -18,7 +18,7 @@ from rich.panel import Panel
 from rich.pretty import Pretty
 
 from ..agents.jira_agent import JiraAgent
-from ..tools.jira import parse_json_to_jira_issue
+from ..tools.jira_toolkit import parse_json_to_jira_issue
 
 
 class ReleaseNotesGenerator:
