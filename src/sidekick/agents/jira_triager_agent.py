@@ -56,7 +56,6 @@ class JiraTriagerAgent:
         self._initialized = False
         self._session_id: str | None = None
         self.jira_knowledge_manager = jira_knowledge_manager
-        self.jira_knowledge_manager.load_issues(recreate=False)
         logger.debug(f"JiraTriagerAgent initialized: storage_path={storage_path}, user_id={user_id}")
 
     def _generate_session_id(self) -> str:
@@ -275,14 +274,38 @@ class JiraTriagerAgent:
         import json
 
         content = response.content if response.content is not None else "{}"
-        # Remove Markdown code block markers if present
-        clean_content = re.sub(r"^```(?:json)?\s*|\s*```$", "", content.strip(), flags=re.IGNORECASE | re.MULTILINE)
+
+        # Try multiple approaches to extract JSON from the response
+        json_content = self._extract_json_from_response(content)
+
         try:
-            result = json.loads(clean_content)
+            result = json.loads(json_content)
             return {k: v for k, v in result.items() if k in missing_fields or k == "confidence"}
         except Exception as e:
             logger.error(f"Failed to parse agent response: {e}\nResponse: {response.content}")
             raise RuntimeError(f"Failed to parse agent response: {e}") from e
+
+    def _extract_json_from_response(self, content: str) -> str:
+        """Extract JSON content from response, handling code blocks and plain text."""
+        import json
+
+        # Look for JSON in code blocks first
+        json_block_match = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", content, re.DOTALL | re.IGNORECASE)
+        if json_block_match:
+            return json_block_match.group(1).strip()
+
+        # Look for any JSON object in the text
+        json_match = re.search(r"\{[^}]+\}", content, re.DOTALL)
+        if json_match:
+            candidate = json_match.group(0).strip()
+            try:
+                json.loads(candidate)  # Validate it's valid JSON
+                return candidate
+            except json.JSONDecodeError:
+                pass
+
+        # Fallback: return cleaned content
+        return re.sub(r"^```(?:json)?\s*|\s*```$", "", content.strip(), flags=re.IGNORECASE | re.MULTILINE)
 
     def _get_assignee_team_info(self, assignee: str) -> str:
         if not assignee:
